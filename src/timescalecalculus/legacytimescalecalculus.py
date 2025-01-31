@@ -1,12 +1,13 @@
 import operator
-from functools import reduce # Added this because in python 3.* they changed the location of the reduce() method to the functools module
+from functools import reduce  # Added this because in python 3.* they changed the location of the reduce() method to the functools module
 from scipy import integrate
 from scipy.misc import derivative
 import numpy as np
 import matplotlib.pyplot as plt
 import symengine
-#import jitcdde
+import jitcdde
 import mpmath
+
 
 #
 #
@@ -14,7 +15,8 @@ import mpmath
 # https://stackoverflow.com/questions/595374/whats-the-python-function-like-sum-but-for-multiplication-product
 #
 def product(factors):
-        return reduce(operator.mul, factors, 1)
+    return reduce(operator.mul, factors, 1)
+
 
 #
 #
@@ -22,14 +24,14 @@ def product(factors):
 #
 #
 class timescale:
-    def __init__(self,ts,name='none'):
+    def __init__(self, ts, name="none"):
         self.ts = ts
         self.name = name
 
         # The following two dictionary data members are used for the memoization of the g_k and h_k functions of this class.
         self.memo_g_k = {}
         self.memo_h_k = {}
-                
+
         # The following data member allows users to access the functions of the matplotlib.pyplot interface.
         # This means that a user has more control over the plotting functionality of this class.
         # For instance, the xlabel and ylabel functions of the pyplot interface can be set via this data member.
@@ -87,7 +89,7 @@ class timescale:
     # forward jump
     #
     #
-    def sigma(self,t):
+    def sigma(self, t):
         tIndex = 0
         tNext = None
         iterations = 0
@@ -103,11 +105,11 @@ class timescale:
             return t
 
         elif isinstance(self.ts[tIndex], list):
-            if (t != self.ts[tIndex][1]):
+            if t != self.ts[tIndex][1]:
                 return t
 
             else:
-                if (isinstance(self.ts[tIndex + 1], list)):
+                if isinstance(self.ts[tIndex + 1], list):
                     return self.ts[tIndex + 1][0]
 
                 else:
@@ -127,58 +129,58 @@ class timescale:
     # backwards jump
     #
     #
-    def rho(self,t):
-        if t==min(self.ts):
+    def rho(self, t):
+        if t == min(self.ts):
             return t
         else:
-            return max([x for x in self.ts if x<t])
+            return max([x for x in self.ts if x < t])
 
     #
     #
     # graininess
     #
     #
-    def mu(self,t):    
+    def mu(self, t):
         for x in self.ts:
             if isinstance(x, list) and t >= x[0] and t < x[1]:
                 return 0
 
-        return self.sigma(t)-t
+        return self.sigma(t) - t
 
     #
     #
     # backward graininess
     #
     #
-    def nu(self,t):
-        return t-self.rho(t)
+    def nu(self, t):
+        return t - self.rho(t)
 
     #
     #
     # delta derivative
     #
     #
-    def dderivative(self,f,t):
+    def dderivative(self, f, t):
         if self.sigma(t) == t:
-            return derivative(f, t, dx=(1.0/2**16))
-
+            # return derivative(f, t, dx=(1.0 / 2**16))
+            return mpmath.diff(f, t)  # `scipy.misc.derivative` is getting deprecated
         else:
-            return (f(self.sigma(t))-f(t))/self.mu(t)
+            return (f(self.sigma(t)) - f(t)) / self.mu(t)
 
     #
     #
     # nabla derivative
     #
     #
-    def nderivative(self,f,t):
-        return (f(t)-f(self.rho(t)))/self.nu(t)
+    def nderivative(self, f, t):
+        return (f(t) - f(self.rho(t))) / self.nu(t)
 
     #
     #
     # delta integral
     #
     #
-    def dintegral(self, f, t, s, throwExceptions = True):
+    def dintegral(self, f, t, s, throwExceptions=True):
         # The following code checks that t and s are elements of the timescale
 
         tIsAnElement = False
@@ -191,10 +193,10 @@ class timescale:
             if not isinstance(x, list) and x == s:
                 sIsAnElement = True
 
-            if isinstance(x, list) and  (t >= x[0] and t <= x[1]):
+            if isinstance(x, list) and (t >= x[0] and t <= x[1]):
                 tIsAnElement = True
 
-            if isinstance(x, list) and  (s >= x[0] and s <= x[1]):
+            if isinstance(x, list) and (s >= x[0] and s <= x[1]):
                 sIsAnElement = True
 
             if tIsAnElement and sIsAnElement:
@@ -218,12 +220,12 @@ class timescale:
         if errorOccurred:
             if throwExceptions:
                 raise Exception(message)
-            
+
             else:
                 print("Warning: " + message)
 
         # Validation code ends
-        
+
         points = []
         intervals = []
 
@@ -254,7 +256,7 @@ class timescale:
         # print(points)
         # print(intervals)
 
-        sumOfIntegratedPoints = sum([self.mu(x)*f(x) for x in points])
+        sumOfIntegratedPoints = sum([self.mu(x) * f(x) for x in points])
 
         sumOfIntegratedIntervals = sum([self.integrate_complex(f, x[0], x[1]) for x in intervals])
 
@@ -265,10 +267,10 @@ class timescale:
     # Utility function to integrate potentially infinite timescale sections of points and intervals.
     #
     #
-    def compute_potentially_infinite_timescale(self, f, ts_generator_function, ts_generator_arguments):    
+    def compute_potentially_infinite_timescale(self, f, ts_generator_function, ts_generator_arguments):
         print("ts_generator_arguments =", ts_generator_arguments)
         print()
-                
+
         # The following argument "ts_gen_arg_mpf" has "mpf" on the end because the mpmath package passes "mpf" objects to this function as part of the nsum() function's design.
         # These objects are converted to floats via the line: ts_gen_arg = float(mpmath.nstr(ts_gen_arg_mpf, n=15)).
         # This conversion enables us to integrate/solve as usual for the generated points/intervals.
@@ -277,59 +279,59 @@ class timescale:
             ts_item = ts_generator_function(ts_gen_arg)
             next_ts_item = ts_generator_function(ts_gen_arg + 1)
             self.validate_generated_timescale_value_pair(ts_item, next_ts_item, ts_generator_function)
-                       
+
             print("wrapper_function: ts_gen_arg =", ts_gen_arg)
             print("wrapper_function: ts_generator_arguments =", ts_generator_arguments)
             print("wrapper_function: ts_item =", ts_item)
             print("wrapper_function: next_ts_item =", next_ts_item)
-            
+
             if isinstance(ts_item, list):
                 print("wrapper_function: integrating over interval")
-                
+
                 interval_result = self.integrate_complex(f, ts_item[0], ts_item[1])
-                
-                step_after_interval = 0.0                
-                
-                if ts_generator_arguments[1] > ts_gen_arg:                
+
+                step_after_interval = 0.0
+
+                if ts_generator_arguments[1] > ts_gen_arg:
                     if isinstance(next_ts_item, list):
                         next_ts_item = next_ts_item[0]
-                        
+
                     step_after_interval = (next_ts_item - ts_item[1]) * f(ts_item[1])
-                
+
                 print("interval_result =", interval_result)
                 print("step_after_interval =", step_after_interval)
-                
+
                 print("*****wrapper_function: RETURNING interval_result + step_after_interval =", interval_result + step_after_interval)
                 print()
-                
+
                 return interval_result + step_after_interval
-            
+
             else:
                 print("wrapper_function: calculating discrete value")
-                
+
                 discrete_result = 0.0
-                
-                if ts_generator_arguments[1] > ts_gen_arg:                    
+
+                if ts_generator_arguments[1] > ts_gen_arg:
                     if isinstance(next_ts_item, list):
                         next_ts_item = next_ts_item[0]
-                    
+
                     discrete_result = (next_ts_item - ts_item) * f(ts_item)
-                
+
                 print("*****wrapper_function: RETURNING discrete result value =", discrete_result)
                 print()
-                
+
                 return discrete_result
-        
+
         result = mpmath.nsum(wrapper_function, ts_generator_arguments)
-        
+
         print("----RESULT----")
         print()
-        
+
         return result
 
     #
     #
-    # Utility function to integrate a generated timescale section of points and intervals for t. 
+    # Utility function to integrate a generated timescale section of points and intervals for t.
     # Arguments:
     #   f: The function with which to solve the timescale for a particular target value = t.
     #
@@ -343,7 +345,7 @@ class timescale:
     #   ts_generator_arguments: A list of two numbers of the form [start, end] where start is the first value fed to the ts_generator_function and end is the last value fed to that same function.
     #                           As mentioned before, the different between any two consecutive numbers between start and end is always 1 -- this is purely a method for generating the timescale.
     #                           As an example: if ts_generator_arguments = [1, 4], then ts_generator_function will be fed the following values in the listed order: 1, 2, 3, 4.
-    #                           That ts_generator_function will then return, for each value fed to it, a particular timescale section. 
+    #                           That ts_generator_function will then return, for each value fed to it, a particular timescale section.
     #                           compute_potentially_infinite_timescale_for_t() will then solve over these sections.
     #
     #   signif_count: How many previously calcuated values (that are obtained from solving integrals or discrete points) to check the "significance" of -- see "signif_threshold" for more information.
@@ -356,86 +358,86 @@ class timescale:
     #                             it will not consider them to be insignificant even if all are below the signif_threshold.
     #
     #
-    def compute_potentially_infinite_timescale_for_t(self, f, t_target, t_0, ts_generator_function, ts_generator_arguments, signif_count = 10, signif_threshold = 0.0000001, increasing_always_signif = True):    
+    def compute_potentially_infinite_timescale_for_t(self, f, t_target, t_0, ts_generator_function, ts_generator_arguments, signif_count=10, signif_threshold=0.0000001, increasing_always_signif=True):
         print("ts_generator_arguments =", ts_generator_arguments)
         print()
-        
+
         def wrapper_function(ts_gen_arg):
             ts_item = ts_generator_function(ts_gen_arg)
             next_ts_item = ts_generator_function(ts_gen_arg + 1)
             self.validate_generated_timescale_value_pair(ts_item, next_ts_item, ts_generator_function)
-                       
+
             print("wrapper_function: ts_gen_arg =", ts_gen_arg)
             print("wrapper_function: ts_generator_arguments =", ts_generator_arguments)
             print("wrapper_function: t_target =", t_target)
             print("wrapper_function: ts_item =", ts_item)
             print("wrapper_function: next_ts_item =", next_ts_item)
-                       
+
             if isinstance(ts_item, list):
                 print("wrapper_function: integrating over interval")
-                
+
                 if ts_item[0] > t_target:
                     raise Exception("ts_item[0] = " + str(ts_item[0]) + " was greater than t_target = " + str(t_target) + " -- the timescale does not contain t_target")
-                
+
                 if t_target > ts_item[1]:
                     interval_result = self.integrate_complex(f, ts_item[0], ts_item[1])
-                
+
                 else:
                     interval_result = self.integrate_complex(f, ts_item[0], t_target)
 
                     print("*****wrapper_function: t_target <= ts_item[1] -> RETURNING interval_result =", interval_result)
-                    
-                    return {"result" : interval_result, "found_t_target" : True}
-                
-                step_after_interval = 0.0                
-                
-                if ts_generator_arguments[1] > ts_gen_arg:                
+
+                    return {"result": interval_result, "found_t_target": True}
+
+                step_after_interval = 0.0
+
+                if ts_generator_arguments[1] > ts_gen_arg:
                     if isinstance(next_ts_item, list):
                         next_ts_item = next_ts_item[0]
-                        
+
                     step_after_interval = (next_ts_item - ts_item[1]) * f(ts_item[1])
-                
+
                 print("interval_result =", interval_result)
                 print("step_after_interval =", step_after_interval)
-                
+
                 print("*****wrapper_function: RETURNING interval_result + step_after_interval =", interval_result + step_after_interval)
                 print()
-                
+
                 if t_target == next_ts_item:
-                    return {"result" : interval_result + step_after_interval, "found_t_target" : True}
-                    
+                    return {"result": interval_result + step_after_interval, "found_t_target": True}
+
                 else:
-                    return {"result" : interval_result + step_after_interval, "found_t_target" : False}
-            
+                    return {"result": interval_result + step_after_interval, "found_t_target": False}
+
             else:
                 print("wrapper_function: calculating discrete value")
-                
+
                 if ts_item > t_target:
                     raise Exception("ts_item = " + str(ts_item) + " was greater than t_target = " + str(t_target) + " -- the timescale does not contain t_target")
-                
+
                 discrete_result = 0.0
-                
-                if ts_generator_arguments[1] > ts_gen_arg:                    
+
+                if ts_generator_arguments[1] > ts_gen_arg:
                     if isinstance(next_ts_item, list):
                         next_ts_item = next_ts_item[0]
-                    
+
                     discrete_result = (next_ts_item - ts_item) * f(ts_item)
-                
+
                 print("*****wrapper_function: RETURNING discrete result value =", discrete_result)
                 print()
-                
+
                 if t_target == ts_item:
-                    return {"result" : discrete_result, "found_t_target" : True}
-                    
+                    return {"result": discrete_result, "found_t_target": True}
+
                 else:
-                    return {"result" : discrete_result, "found_t_target" : False}
-        
-        result = self.special_sum_function(f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arguments, prior_results_significance_count = signif_count, significance_limit = signif_threshold, increasing_always_signif = increasing_always_signif)
-        
+                    return {"result": discrete_result, "found_t_target": False}
+
+        result = self.special_sum_function(f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arguments, prior_results_significance_count=signif_count, significance_limit=signif_threshold, increasing_always_signif=increasing_always_signif)
+
         print()
         print("----RESULT----")
         print()
-        
+
         return result
 
     #
@@ -460,69 +462,69 @@ class timescale:
         print("iterations_limit =", iterations_limit)
         print("prior_results_significance_count =", prior_results_significance_count)
         print("significance_limit =", significance_limit)
-        
+
         # Initializing prior results list.
         prior_results = []
-                
+
         i = 0
-        
+
         while i < prior_results_significance_count:
             prior_results.append(0.0)
             i = i + 1
-        
+
         # Finding t_0 in generated timescale.
         while iteration < iterations_limit:
             print()
             print("iteration =", iteration)
             print("ts_generator_arg =", ts_generator_arg)
-        
-            find_t_0_dictionary_result = self.special_sum_function_find_t_0(f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arg, ts_generator_arguments,)
-            
+
+            find_t_0_dictionary_result = self.special_sum_function_find_t_0(f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arg, ts_generator_arguments)
+
             iteration = iteration + 1
             ts_generator_arg = ts_generator_arg + 1
-            
+
             if find_t_0_dictionary_result["found_t_0"] is True:
                 if find_t_0_dictionary_result["found_t_target"] is True:
                     found_t_target = True
-                
+
                 prior_results[iteration % prior_results_significance_count] = find_t_0_dictionary_result["result"]
-                result = result + find_t_0_dictionary_result["result"]                
+                result = result + find_t_0_dictionary_result["result"]
                 break
-       
+
         # Solving over generated timescale sections for t_target if t_target has not already been found.
         if found_t_target is False:
             while iteration < iterations_limit:
                 print()
                 print("iteration =", iteration)
                 print("ts_generator_arg =", ts_generator_arg)
-                
+
                 dictionary_result = wrapper_function(ts_generator_arg)
-                
+
                 prior_results[iteration % prior_results_significance_count] = dictionary_result["result"]
                 result = result + dictionary_result["result"]
-                
+
                 if dictionary_result["found_t_target"] is True:
                     print("special_sum_function: found_t_target -> returning result")
                     break
-                
+
                 if iteration >= prior_results_significance_count:
                     print("special_sum_function: checking significance of the last " + str(prior_results_significance_count) + " results:")
-                    
+
                     if self.insignificant_prior_results(iteration, prior_results, prior_results_significance_count, significance_limit, increasing_always_signif) is True:
-                        print("special_sum_function: ***WARNING***: insignificant results detected: returning result before t_target was found")                    
+                        print("special_sum_function: ***WARNING***: insignificant results detected: returning result before t_target was found")
                         break
-                
+
                 iteration = iteration + 1
                 ts_generator_arg = ts_generator_arg + 1
-        
+
         print("special_sum_function: before result")
         print("iteration =", iteration)
         print("iterations_limit =", iterations_limit)
         print("ts_generator_arg =", ts_generator_arg)
-        
+
         if iteration == iterations_limit:
             print("special_sum_function: iterations_limit reached -- t_target may not have been found")
-        
+
         return result
 
     #
@@ -532,89 +534,89 @@ class timescale:
     # This function also handles cases where t_0 == t_target and throws and exception when ts_item > t_0 (which indicates that t_0 is not in the timescale).
     #
     #
-    def special_sum_function_find_t_0(self, f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arg, ts_generator_arguments):   
+    def special_sum_function_find_t_0(self, f, t_target, t_0, wrapper_function, ts_generator_function, ts_generator_arg, ts_generator_arguments):
         if t_0 > t_target:
             raise Exception("t_0 > t_target")
-                
+
         print("find_t_0: t_0 =", t_0)
         print("find_t_0: t_target =", t_target)
         print("find_t_0: ts_generator_arg =", ts_generator_arg)
-        
+
         ts_item = ts_generator_function(ts_generator_arg)
         next_ts_item = ts_generator_function(ts_generator_arg + 1)
         self.validate_generated_timescale_value_pair(ts_item, next_ts_item, ts_generator_function)
-        
+
         print("find_t_0: ts_item =", ts_item)
         print("find_t_0: next_ts_item =", next_ts_item)
-        
-        if isinstance(ts_item, list):            
-            if ts_item[0] <= t_0 <= ts_item[1]:                
+
+        if isinstance(ts_item, list):
+            if ts_item[0] <= t_0 <= ts_item[1]:
                 if t_target > ts_item[1]:
                     interval_result = self.integrate_complex(f, t_0, ts_item[1])
-                    
-                    step_after_interval = 0.0                
-                    
-                    if ts_generator_arguments[1] > ts_generator_arg:                
+
+                    step_after_interval = 0.0
+
+                    if ts_generator_arguments[1] > ts_generator_arg:
                         if isinstance(next_ts_item, list):
                             next_ts_item = next_ts_item[0]
-                            
+
                         step_after_interval = (next_ts_item - ts_item[1]) * f(ts_item[1])
-                    
+
                     print("interval_result =", interval_result)
                     print("step_after_interval =", step_after_interval)
-                    
+
                     print("*****find_t_0: RETURNING interval_result + step_after_interval =", interval_result + step_after_interval)
                     print()
-                    
+
                     if t_target == next_ts_item:
-                        return {"result" : interval_result + step_after_interval, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : True}
-                        
+                        return {"result": interval_result + step_after_interval, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": True}
+
                     else:
-                        return {"result" : interval_result + step_after_interval, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : False}
-                    
+                        return {"result": interval_result + step_after_interval, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": False}
+
                 else:
                     interval_result = self.integrate_complex(f, t_0, t_target)
 
                     print("*****special_sum_function_find_t_0: t_target <= ts_item[1] -> RETURNING interval_result =", interval_result)
-                                            
-                    return {"result" : interval_result, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : True}
-                
+
+                    return {"result": interval_result, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": True}
+
             elif ts_item[0] > t_0:
                 raise Exception("ts_item[0] > t_0 --  t_0 was not in the timescale")
-        
+
         else:
             if t_0 == ts_item:
                 if t_0 != t_target:
                     if ts_item > t_target:
                         raise Exception("ts_item = " + str(ts_item) + " was greater than t_target = " + str(t_target) + " -- the timescale does not contain t_target")
-                    
+
                     discrete_result = 0.0
-                    
-                    if ts_generator_arguments[1] > ts_generator_arg:                    
+
+                    if ts_generator_arguments[1] > ts_generator_arg:
                         if isinstance(next_ts_item, list):
                             next_ts_item = next_ts_item[0]
-                        
+
                         discrete_result = (next_ts_item - ts_item) * f(ts_item)
-                    
+
                     print("*****find_t_0: RETURNING discrete result value =", discrete_result)
                     print()
-                    
+
                     if t_target == ts_item:
                         print("t_target == ts_item")
-                        return {"result" : discrete_result, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : True}
-                        
+                        return {"result": discrete_result, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": True}
+
                     else:
                         print("t_target != ts_item")
-                        return {"result" : discrete_result, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : False}
-                        
+                        return {"result": discrete_result, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": False}
+
                 else:
-                    return {"result" : 0.0, "ts_generator_arg" : ts_generator_arg, "found_t_0" : True, "found_t_target" : True}
-                
+                    return {"result": 0.0, "ts_generator_arg": ts_generator_arg, "found_t_0": True, "found_t_target": True}
+
             elif ts_item > t_0:
                 raise Exception("ts_item > t_0 --  t_0 was not in the timescale")
-    
-        return {"result" : None, "ts_generator_arg" : ts_generator_arg, "found_t_0" : False, "found_t_target" : False}
-    
+
+        return {"result": None, "ts_generator_arg": ts_generator_arg, "found_t_0": False, "found_t_target": False}
+
     #
     #
     # Utility function for the special sum function -- it checks the last n=prior_results_significance_count prior_results to see if they are below the significance_limit.
@@ -628,30 +630,30 @@ class timescale:
     #
     def insignificant_prior_results(self, iteration, prior_results, prior_results_significance_count, significance_limit, increasing_always_signif):
         i = 0
-        
+
         insignificant = True
-        
+
         last_obtained_result_abs_val = abs(prior_results[(iteration) % prior_results_significance_count])
-                
-        while i < prior_results_significance_count:            
+
+        while i < prior_results_significance_count:
             # print("abs(prior_results[((" + str(iteration) + " + " + str(i) + ") % " + str(prior_results_significance_count) + ") = " + str((iteration + i) % prior_results_significance_count) + "]) =", abs(prior_results[(iteration + i) % prior_results_significance_count]))
-            
+
             print("abs(prior_results[" + str((iteration + i) % prior_results_significance_count) + "]) =", abs(prior_results[(iteration + i) % prior_results_significance_count]))
-            
+
             obtained_result_abs_val = abs(prior_results[(iteration + i) % prior_results_significance_count])
-            
+
             if obtained_result_abs_val > significance_limit:
                 insignificant = False
-            
+
             if increasing_always_signif is True:
                 if last_obtained_result_abs_val > obtained_result_abs_val:
                     insignificant = False
-                
+
             i = i + 1
-        
+
         if insignificant:
             return True
-        
+
         else:
             return False
 
@@ -664,21 +666,21 @@ class timescale:
     #
     def validate_generated_timescale_value_pair(self, ts_item, next_ts_item, ts_generator_function):
         description = "The given function " + str(locals().get("ts_generator_function")) + " did not generate a strictly increasing timescale."
-        
+
         if isinstance(ts_item, list):
             if isinstance(next_ts_item, list):
                 if ts_item[1] >= next_ts_item[0]:
                     raise Exception("(ts_item[1] = " + str(ts_item[1]) + ") >= (next_ts_item[0] = " + str(next_ts_item[0]) + ")\n" + description)
-            
+
             else:
                 if ts_item[1] >= next_ts_item:
                     raise Exception("(ts_item[1] = " + str(ts_item[1]) + ") >= (next_ts_item = " + str(next_ts_item) + ")\n" + description)
-        
+
         else:
             if isinstance(next_ts_item, list):
                 if ts_item >= next_ts_item[0]:
                     raise Exception("(ts_item = " + str(ts_item) + ") >= (next_ts_item[0] = " + str(next_ts_item[0]) + ")\n" + description)
-            
+
             else:
                 if ts_item >= next_ts_item:
                     raise Exception("(ts_item = " + str(ts_item) + ") >= (next_ts_item = " + str(next_ts_item) + ")\n" + description)
@@ -716,7 +718,7 @@ class timescale:
         print("Generated timescale:")
         print(generated_timescale)
         print()
-        
+
     #
     #
     # Utility function to get the values of a generated timescale based on a starting value and ending value.
@@ -759,45 +761,46 @@ class timescale:
     def integrate_complex(self, f, s, t, **kwargs):
         def real_component(t):
             return np.real(f(t))
-            
+
         def imaginary_component(t):
             return np.imag(f(t))
-        
+
         real_result = float(mpmath.nstr(mpmath.quad(real_component, [s, t], **kwargs), n=15))
         imaginary_result = float(mpmath.nstr(mpmath.quad(imaginary_component, [s, t], **kwargs), n=15))
-        
+
         if imaginary_result == 0:
             return real_result
-        
+
         else:
-            return real_result + 1j*imaginary_result
-            
+            return real_result + 1j * imaginary_result
+
     #
     #
     # Generalized g_k polynomial from page 38 with memoization.
     #
     #
     def g_k(self, k, t, s):
-        if (k < 0):
+        if k < 0:
             raise Exception("g_k(): k should never be less than 0!")
 
-        elif (k != 0):
+        elif k != 0:
             currentKey = str(k) + ":" + str(t) + ":" + str(s)
 
             if currentKey in self.memo_g_k:
                 return self.memo_g_k[currentKey]
 
             else:
-                def g(x):
-                   return self.g_k(k - 1, self.sigma(x), s)
 
-                integralResult = self.dintegral(g, t, s, throwExceptions = False)
+                def g(x):
+                    return self.g_k(k - 1, self.sigma(x), s)
+
+                integralResult = self.dintegral(g, t, s, throwExceptions=False)
 
                 self.memo_g_k[currentKey] = integralResult
 
                 return integralResult
 
-        elif (k == 0):
+        elif k == 0:
             return 1
 
     #
@@ -806,28 +809,29 @@ class timescale:
     #
     #
     def h_k(self, k, t, s):
-        if (k < 0):
+        if k < 0:
             raise Exception("h_k(): k should never be less than 0!")
 
-        elif (k != 0):
+        elif k != 0:
             currentKey = str(k) + ":" + str(t) + ":" + str(s)
 
             if currentKey in self.memo_h_k:
                 return self.memo_h_k[currentKey]
 
             else:
+
                 def h(x):
                     return self.h_k(k - 1, x, s)
-                
+
                 # print("h_k: t =", t)
-                
-                integralResult = self.dintegral(h, t, s, throwExceptions = False)
+
+                integralResult = self.dintegral(h, t, s, throwExceptions=False)
 
                 self.memo_h_k[currentKey] = integralResult
 
                 return integralResult
 
-        elif (k == 0):
+        elif k == 0:
             return 1
 
     #
@@ -836,11 +840,11 @@ class timescale:
     #
     #
     def cyl(self, t, z):
-        if (self.mu(t) == 0):
+        if self.mu(t) == 0:
             return z
-        
+
         else:
-            return 1/self.mu(t) * np.log(1 + z*self.mu(t))
+            return 1 / self.mu(t) * np.log(1 + z * self.mu(t))
 
     #
     #
@@ -849,13 +853,8 @@ class timescale:
     #
     def dexp_p(self, p, t, s):
         def f(t):
-            if(t>s):
-                return self.cyl(t, p(t))
-            elif(t==s):
-                return 1.0
-            else:
-                return self.dexp_p(p, s, t)
-               
+            return self.cyl(t, p(t))
+
         return np.exp(self.dintegral(f, t, s))
 
     #
@@ -863,8 +862,8 @@ class timescale:
     # forward circle minus
     #
     #
-    def mucircleminus(self,f,t):
-        return -f(t)/(1+f(t)*self.mu(t))
+    def mucircleminus(self, f, t):
+        return -f(t) / (1 + f(t) * self.mu(t))
 
     #
     #
@@ -876,11 +875,11 @@ class timescale:
 
         dexp_p2 = self.dexp_p(lambda x: p(x) * -1j, t, s)
 
-        result = ((dexp_p1 + dexp_p2) / 2)
-        
+        result = (dexp_p1 + dexp_p2) / 2
+
         if np.imag(result) == 0:
             return np.real(result)
-        
+
         else:
             return result
 
@@ -894,11 +893,11 @@ class timescale:
 
         dexp_p2 = self.dexp_p(lambda x: p(x) * -1j, t, s)
 
-        result = ((dexp_p1 - dexp_p2) / 2j)
+        result = (dexp_p1 - dexp_p2) / 2j
 
         if np.imag(result) == 0:
             return np.real(result)
-        
+
         else:
             return result
 
@@ -921,7 +920,7 @@ class timescale:
     #
     # where t_0 is the starting value in the timescale and
     #
-    #   y_0 = y(t_0) 
+    #   y_0 = y(t_0)
     #
     # is the initial value provided by the user.
     #
@@ -933,7 +932,7 @@ class timescale:
     #
     #   "t_target" is the timescale value for which y should be evaluated and returned.
     #
-    #   "y_prime" is the function y'(t) of the ODE y'(t) = p(t)*y(t). 
+    #   "y_prime" is the function y'(t) of the ODE y'(t) = p(t)*y(t).
     #   NOTE: "y_prime" MUST be defined such that the arguments ("t" and "y") appear in this order: y_prime(t, y).
     #   If this particular order is not used, then the solve_ode_for_t() function will plug in the wrong values for t and y when solving.
     #   This means that the solve_ode_for_t() function will (except in specific cases like when t = y) return an incorrect result.
@@ -948,153 +947,153 @@ class timescale:
     # Currently, t_target > t_0 is a requirement -- solving for a t_target < t_0 is not supported.
     #
     #
-    def solve_ode_for_t(self, y_0, t_0, t_target, y_prime): # Note: y(t_0) = y_0
+    def solve_ode_for_t(self, y_0, t_0, t_target, y_prime):  # Note: y(t_0) = y_0
         # print("solve_ode_for_t arguments:")
         # print("y_0 =", y_0)
         # print("t_0 =", t_0)
         # print("t_target =", t_target)
         # print("")
-        
+
         # The following is more validation code -- this is very similar to the validation code in the dIntegral function.
-        #----------------------------------------------------------------------------#
-        
+        # ----------------------------------------------------------------------------#
+
         t_in_ts = False
         t_0_in_ts = False
         discretePoint = False
-        
+
         for x in self.ts:
             if not isinstance(x, list) and t_target == x:
                 t_in_ts = True
-                
-            if not isinstance(x, list) and t_0 == x: 
+
+            if not isinstance(x, list) and t_0 == x:
                 discretePoint = True
                 t_0_in_ts = True
-            
+
             if isinstance(x, list) and t_target <= x[1] and t_target >= x[0]:
                 t_in_ts = True
-            
+
             if isinstance(x, list) and t_0 < x[1] and t_0 >= x[0]:
                 discretePoint = False
                 t_0_in_ts = True
-                
+
             if isinstance(x, list) and t_0 == x[1]:
                 discretePoint = True
                 t_0_in_ts = True
-            
-            if t_in_ts and t_0_in_ts:                
+
+            if t_in_ts and t_0_in_ts:
                 break
-        
+
         if t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_for_t: t_0 is not a value in the timescale.")
-        
+
         if not t_in_ts and t_0_in_ts:
             raise Exception("solve_ode_for_t: t_target is not a value in the timescale.")
-        
+
         if not t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_for_t: t_0 and t_target are not values in the timescale.")
-        
+
         if t_0 == t_target:
             return y_0
-        
+
         elif t_0 > t_target:
             raise Exception("solve_ode_for_t: t_0 cannot be greater than t_target.")
-        
-        #----------------------------------------------------------------------------#
-        
+
+        # ----------------------------------------------------------------------------#
+
         t_current = t_0
         y_current = y_0
-        
+
         ODE = integrate.ode(y_prime)
-        
-        while self.isInTimescale(t_current): # Technically safer than "while True:"
-            if discretePoint:                
+
+        while self.isInTimescale(t_current):  # Technically safer than "while True:"
+            if discretePoint:
                 # print("Solving right scattered point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print("y_prime(t_current, y_current) =", y_prime(t_current, y_current))
                 # print("self.mu(t_current) =", self.mu(t_current))
-                # print()            
-  
+                # print()
+
                 y_sigma_of_t_current = y_current + y_prime(t_current, y_current) * self.mu(t_current)
-                
+
                 t_next = self.sigma(t_current)
-                
+
                 # print("t_next = self.sigma(t_current) =", t_next)
-                # print()                
+                # print()
                 # print("Result:")
                 # print("y_sigma_of_t_current =", y_sigma_of_t_current)
                 # print()
-                                
+
                 if t_target == t_next:
                     # print("t_target == t_next -> returning y_sigma_of_t_current\n")
                     return y_sigma_of_t_current
-                
+
                 if self.isDiscretePoint(t_next):
                     discretePoint = True
                     # print("[NEXT IS DISCRETE POINT]")
-                    
+
                 else:
                     # print("[NEXT IS NOT DISCRETE POINT]")
                     discretePoint = False
-                
+
                 t_current = t_next
-                y_current = y_sigma_of_t_current                
-                                
+                y_current = y_sigma_of_t_current
+
             else:
-                # print("Solving right dense point where:")                    
+                # print("Solving right dense point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print()
-                                      
+
                 ODE.set_initial_value(y_current, t_current)
-                
+
                 if self.isDiscretePoint(t_current):
                     raise Exception("t_current is NOT in a list/interval! Something went wrong!")
-                
+
                 else:
                     interval_of_t_current = self.getCorrespondingInterval(t_current)
-                    
+
                     # print("Integration conditions:")
                     # print("t_current =", t_current)
                     # print("interval_of_t_current =", interval_of_t_current)
-                    
+
                     if t_target <= interval_of_t_current[1] and t_target >= interval_of_t_current[0]:
                         # print("Integrating to t =", t_target)
                         # print()
                         ODE_integration_result = ODE.integrate(t_target)
-                        
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         return ODE_integration_result
-                    
+
                     elif t_target > interval_of_t_current[1]:
                         # print("Integrating to t =", interval_of_t_current[1])
                         # print()
                         ODE_integration_result = ODE.integrate(interval_of_t_current[1])
-                        
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         t_current = interval_of_t_current[1]
                         y_current = ODE_integration_result
-                        
+
                         # print("[NEXT IS DISCRETE POINT]")
                         discretePoint = True
 
                 if not ODE.successful():
-                    raise Exception("ODE.successful() returned False!");
-    
+                    raise Exception("ODE.successful() returned False!")
+
     #
     #
     # This function is another version of the solve_ode_for_t() function.
     # It uses scipy.integrate.odeint to integrate over intervals rather than the scipy.integrate.ode method used by the solve_ode_for_t() function.
     # In general, it seems to be less accurate than solve_ode_for_t().
-    # The additional stepSize argument (default value = 0.0001) can be used to somewhat mitigate this inaccuracy. 
+    # The additional stepSize argument (default value = 0.0001) can be used to somewhat mitigate this inaccuracy.
     # However, even with extremely small step sizes (like stepSize = 0.0000001), solve_ode_for_t() seems to be better.
     #
     # NOTE: The scipy.integrate.odeint function requires that the argument function, y_prime(), has its arguments in a particular order.
@@ -1103,153 +1102,154 @@ class timescale:
     # If y_prime(t, y) is provided, nonsensical results will be returned since the wrong values will be plugged into y and t.
     #
     #
-    def solve_ode_for_t_with_odeint(self, y_0, t_0, t_target, y_prime, stepSize = 0.0001): # Note: y(t_0) = y_0
+    def solve_ode_for_t_with_odeint(self, y_0, t_0, t_target, y_prime, stepSize=0.0001):  # Note: y(t_0) = y_0
         # print("solve_ode_for_t arguments:")
         # print("y_0 =", y_0)
         # print("t_0 =", t_0)
         # print("t_target =", t_target)
         # print("")
-        
+
         # The following is more validation code -- this is very similar to the validation code in the dIntegral function.
-        #----------------------------------------------------------------------------#
-        
+        # ----------------------------------------------------------------------------#
+
         t_in_ts = False
         t_0_in_ts = False
         discretePoint = False
-        
+
         for x in self.ts:
             if not isinstance(x, list) and t_target == x:
                 t_in_ts = True
-                
-            if not isinstance(x, list) and t_0 == x: 
+
+            if not isinstance(x, list) and t_0 == x:
                 discretePoint = True
                 t_0_in_ts = True
-            
+
             if isinstance(x, list) and t_target <= x[1] and t_target >= x[0]:
                 t_in_ts = True
-            
+
             if isinstance(x, list) and t_0 < x[1] and t_0 >= x[0]:
                 discretePoint = False
                 t_0_in_ts = True
-                
+
             if isinstance(x, list) and t_0 == x[1]:
                 discretePoint = True
                 t_0_in_ts = True
-            
-            if t_in_ts and t_0_in_ts:                
+
+            if t_in_ts and t_0_in_ts:
                 break
-        
+
         if t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_for_t_with_odeint: t_0 is not a value in the timescale.")
-        
+
         if not t_in_ts and t_0_in_ts:
             raise Exception("solve_ode_for_t_with_odeint: t_target is not a value in the timescale.")
-        
+
         if not t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_for_t_with_odeint: t_0 and t_target are not values in the timescale.")
-        
+
         if t_0 == t_target:
             return y_0
-        
+
         elif t_0 > t_target:
             raise Exception("solve_ode_for_t_with_odeint: t_0 cannot be greater than t_target.")
-        
-        #----------------------------------------------------------------------------#
-        
+
+        # ----------------------------------------------------------------------------#
+
         t_current = t_0
         y_current = y_0
-               
+
         while self.isInTimescale(t_current):
-            if discretePoint:                
+            if discretePoint:
                 # print("Solving right scattered point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print("y_prime(y_current, t_current) =", y_prime(y_current, t_current))
                 # print("self.mu(t_current) =", self.mu(t_current))
-                # print()            
-  
+                # print()
+
                 y_sigma_of_t_current = y_current + y_prime(y_current, t_current) * self.mu(t_current)
-                
+
                 t_next = self.sigma(t_current)
-                
+
                 # print("t_next = self.sigma(t_current) =", t_next)
-                # print()                
+                # print()
                 # print("Result:")
                 # print("y_sigma_of_t_current =", y_sigma_of_t_current)
                 # print()
-                                
+
                 if t_target == t_next:
                     # print("t_target == t_next -> returning y_sigma_of_t_current\n")
                     return y_sigma_of_t_current
-                
+
                 if self.isDiscretePoint(t_next):
                     discretePoint = True
                     # print("[NEXT IS DISCRETE POINT]")
-                    
+
                 else:
                     # print("[NEXT IS NOT DISCRETE POINT]")
                     discretePoint = False
-                
+
                 t_current = t_next
-                y_current = y_sigma_of_t_current                
-                                
+                y_current = y_sigma_of_t_current
+
             else:
-                # print("Solving right dense point where:")                    
+                # print("Solving right dense point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print()
-                
+
                 if self.isDiscretePoint(t_current):
                     raise Exception("t_current is NOT in a list/interval! Something went wrong!")
-                
+
                 else:
                     interval_of_t_current = self.getCorrespondingInterval(t_current)
-                    
+
                     # print("Integration conditions:")
                     # print("t_current =", t_current)
                     # print("interval_of_t_current =", interval_of_t_current)
-                    
+
                     if t_target <= interval_of_t_current[1] and t_target >= interval_of_t_current[0]:
                         # print("Integrating to t =", t_target)
-                        # print()                                             
-                        
+                        # print()
+
                         current_interval = np.arange(t_current, t_target + stepSize, stepSize)
-                        
+
                         # print(current_interval)
                         # print()
-                        
+
                         ODE_integration_result = integrate.odeint(y_prime, y_current, current_interval)
                         ODE_integration_result = ODE_integration_result[len(ODE_integration_result) - 1]
-                        
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         return ODE_integration_result
-                    
+
                     elif t_target > interval_of_t_current[1]:
                         # print("Integrating to t =", interval_of_t_current[1])
                         # print()
-                        
+
                         current_interval = np.arange(t_current, interval_of_t_current[1] + stepSize, stepSize)
-                        
+
                         # print(current_interval)
                         # print()
-                        
+
                         ODE_integration_result = integrate.odeint(y_prime, y_current, current_interval)
                         ODE_integration_result = ODE_integration_result[len(ODE_integration_result) - 1]
-                        
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         t_current = interval_of_t_current[1]
                         y_current = ODE_integration_result
-                        
+
                         # print("[NEXT IS DISCRETE POINT]")
                         discretePoint = True
+
     #
     #
     # Ordinary Differential Equation System Solver
@@ -1263,189 +1263,189 @@ class timescale:
     #   "t_target" is the timescale value for which y should be evaluated and returned.
     #   Since this function solves a system of equations, the result will be a list of values that constitute the results for each of the equations in the system for t_target.
     #
-    #   "y_prime" is the system of equations where each individual equation is of the form y'(t) = p(t)*y(t). 
+    #   "y_prime" is the system of equations where each individual equation is of the form y'(t) = p(t)*y(t).
     #   NOTE: Since this solver uses the scipy.integrate.odeint function to obtain its result, y_prime MUST be defined with a specific format.
     #   As an example, for a system of two equations, y_prime would have to defined in the following manner:
-    #    
+    #
     #       def y_prime_vector(vector, t): # Argument order is required by the scipy.integrate.odeint class -- "y_prime_vector(y, vector)" will result in incorrect results
     #           x, y = vector # Extract and store the first item from "vector" into x and the second item into y
-    #    
+    #
     #           dt_vector = [x*t, y*t*t] # Define the system of equations
     #
     #           return dt_vector # Return the system
-    #   
+    #
     # NOTE: If the number of items in y_0 is not the same as the number of equations in y_prime, then this solver will fail.
     #
     #
-    def solve_ode_system_for_t(self, y_0, t_0, t_target, y_prime, stepSize = 0.0001): # Note: y(t_0) = y_0
+    def solve_ode_system_for_t(self, y_0, t_0, t_target, y_prime, stepSize=0.0001):  # Note: y(t_0) = y_0
         # print("solve_ode_for_t arguments:")
         # print("y_0 =", y_0)
         # print("t_0 =", t_0)
         # print("t_target =", t_target)
         # print("")
-        
+
         # The following is more validation code -- this is very similar to the validation code in the dIntegral function.
-        #----------------------------------------------------------------------------#
-        
+        # ----------------------------------------------------------------------------#
+
         t_in_ts = False
         t_0_in_ts = False
         discretePoint = False
-        
+
         for x in self.ts:
             if not isinstance(x, list) and t_target == x:
                 t_in_ts = True
-                
-            if not isinstance(x, list) and t_0 == x: 
+
+            if not isinstance(x, list) and t_0 == x:
                 discretePoint = True
                 t_0_in_ts = True
-            
+
             if isinstance(x, list) and t_target <= x[1] and t_target >= x[0]:
                 t_in_ts = True
-            
+
             if isinstance(x, list) and t_0 < x[1] and t_0 >= x[0]:
                 discretePoint = False
                 t_0_in_ts = True
-                
+
             if isinstance(x, list) and t_0 == x[1]:
                 discretePoint = True
                 t_0_in_ts = True
-            
-            if t_in_ts and t_0_in_ts:                
+
+            if t_in_ts and t_0_in_ts:
                 break
-        
+
         if t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_system_for_t: t_0 is not a value in the timescale.")
-        
+
         if not t_in_ts and t_0_in_ts:
             raise Exception("solve_ode_system_for_t: t_target is not a value in the timescale.")
-        
+
         if not t_in_ts and not t_0_in_ts:
             raise Exception("solve_ode_system_for_t: t_0 and t_target are not values in the timescale.")
-        
+
         if t_0 == t_target:
             return y_0
-        
+
         elif t_0 > t_target:
             raise Exception("solve_ode_system_for_t: t_0 cannot be greater than t_target.")
-        
-        #----------------------------------------------------------------------------#
-                
+
+        # ----------------------------------------------------------------------------#
+
         t_current = t_0
         y_current = y_0
-               
+
         while self.isInTimescale(t_current):
-            if discretePoint:                
+            if discretePoint:
                 # print("Solving right scattered point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print("y_prime(y_current, t_current) =", y_prime(y_current, t_current))
                 # print("self.mu(t_current) =", self.mu(t_current))
-                # print()            
-                                
-                #------------------------------#
-                
+                # print()
+
+                # ------------------------------#
+
                 # print("y_prime(y_current, t_current) =", y_prime(y_current, t_current), "self.mu(t_current) =", self.mu(t_current))
-                
+
                 temp1 = list(map(lambda x: x * self.mu(t_current), y_prime(y_current, t_current)))
-                     
+
                 # print("y_current:", y_current, "temp1:", temp1)
-                
+
                 temp2 = list(map(lambda x, y: x + y, y_current, temp1))
-                
+
                 # print("temp2 =", temp2)
-                
-                y_sigma_of_t_current = temp2                
-                
-                #------------------------------#
-                    
+
+                y_sigma_of_t_current = temp2
+
+                # ------------------------------#
+
                 t_next = self.sigma(t_current)
-                
+
                 # print("t_next = self.sigma(t_current) =", t_next)
-                # print()                
+                # print()
                 # print("Result:")
                 # print("y_sigma_of_t_current =", y_sigma_of_t_current)
                 # print()
-                                
+
                 if t_target == t_next:
                     # print("t_target == t_next -> returning y_sigma_of_t_current\n")
                     return y_sigma_of_t_current
-                
+
                 if self.isDiscretePoint(t_next):
                     discretePoint = True
                     # print("[NEXT IS DISCRETE POINT]")
-                    
+
                 else:
                     # print("[NEXT IS NOT DISCRETE POINT]")
                     discretePoint = False
-                
+
                 t_current = t_next
-                y_current = y_sigma_of_t_current                
-                                
+                y_current = y_sigma_of_t_current
+
             else:
-                # print("Solving right dense point where:")                    
+                # print("Solving right dense point where:")
                 # print("t_current =", t_current)
                 # print("y_current =", y_current)
                 # print("t_target =", t_target)
                 # print()
-                
+
                 if self.isDiscretePoint(t_current):
                     raise Exception("t_current is NOT in a list/interval! Something went wrong!")
-                
+
                 else:
                     interval_of_t_current = self.getCorrespondingInterval(t_current)
-                    
+
                     # print("Integration conditions:")
                     # print("t_current =", t_current)
                     # print("interval_of_t_current =", interval_of_t_current)
-                    
+
                     if t_target <= interval_of_t_current[1] and t_target >= interval_of_t_current[0]:
                         # print("Integrating to t =", t_target)
-                        # print()                                             
-                        
+                        # print()
+
                         # stepSize = 0.1
                         # print("stepSize =", stepSize)
-                        
+
                         current_interval = np.arange(t_current, t_target + stepSize, stepSize)
                         # current_interval = np.arange(t_current, t_target, stepSize)
                         # current_interval = np.linspace(t_current, t_target, 500)
-                        
+
                         # print(current_interval)
                         # print()
-                        
+
                         ODE_integration_result = integrate.odeint(y_prime, y_current, current_interval)
-                        
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         ODE_integration_result = ODE_integration_result[len(ODE_integration_result) - 1]
-                        
+
                         return ODE_integration_result
-                    
+
                     elif t_target > interval_of_t_current[1]:
                         # print("Integrating to t =", interval_of_t_current[1])
                         # print()
-                        
+
                         current_interval = np.arange(t_current, interval_of_t_current[1] + stepSize, stepSize)
-                        
+
                         # print(current_interval)
                         # print()
-                        
-                        ODE_integration_result = integrate.odeint(y_prime, y_current, current_interval)                        
-                        
+
+                        ODE_integration_result = integrate.odeint(y_prime, y_current, current_interval)
+
                         # print("Result:")
                         # print("ODE_integration_result =", ODE_integration_result)
                         # print()
-                        
+
                         ODE_integration_result = ODE_integration_result[len(ODE_integration_result) - 1]
-                        
+
                         t_current = interval_of_t_current[1]
                         y_current = ODE_integration_result
-                        
+
                         # print("[NEXT IS DISCRETE POINT]")
                         discretePoint = True
-    
+
     #
     #
     # Delay Differential Equation Solver
@@ -1454,217 +1454,217 @@ class timescale:
     def solve_dde_for_t(self, y_values, t_0, t_target, y_prime, JiTCDDE=None, stepSize=0.01, return_all_results=False):
         print("solve_dde_for_t arguments:")
         print("y_0 = y_values[t_0] =", y_values[t_0])
-        print("t_0 =", t_0)  
+        print("t_0 =", t_0)
         print("y_values =", y_values)
         print("t_target =", t_target)
         print("")
-        
+
         # The following is validation code for the argument "y_values".
-        #----------------------------------------------------------------------------#
-        
+        # ----------------------------------------------------------------------------#
+
         for y_value_key in y_values:
             if not self.isInTimescale(y_value_key):
                 raise Exception("The initial y value, t =", y_value_key, " is not in the timescale")
-        
+
         y_0 = y_values[t_0]
-        
-        #----------------------------------------------------------------------------#
-        
+
+        # ----------------------------------------------------------------------------#
+
         # The following is more validation code -- this is very similar to the validation code in the dIntegral function.
-        #----------------------------------------------------------------------------#
-        
+        # ----------------------------------------------------------------------------#
+
         t_in_ts = False
         t_0_in_ts = False
         discretePoint = False
-        
+
         for x in self.ts:
             if not isinstance(x, list) and t_target == x:
                 t_in_ts = True
-                
-            if not isinstance(x, list) and t_0 == x: 
+
+            if not isinstance(x, list) and t_0 == x:
                 discretePoint = True
                 t_0_in_ts = True
-            
+
             if isinstance(x, list) and t_target <= x[1] and t_target >= x[0]:
                 t_in_ts = True
-            
+
             if isinstance(x, list) and t_0 < x[1] and t_0 >= x[0]:
                 discretePoint = False
                 t_0_in_ts = True
-                
+
             if isinstance(x, list) and t_0 == x[1]:
                 discretePoint = True
                 t_0_in_ts = True
-            
-            if t_in_ts and t_0_in_ts:                
+
+            if t_in_ts and t_0_in_ts:
                 break
-        
+
         if t_in_ts and not t_0_in_ts:
             raise Exception("solve_dde_for_t: t_0 is not a value in the timescale.")
-        
+
         if not t_in_ts and t_0_in_ts:
             raise Exception("solve_dde_for_t: t_target is not a value in the timescale.")
-        
+
         if not t_in_ts and not t_0_in_ts:
             raise Exception("solve_dde_for_t: t_0 and t_target are not values in the timescale.")
-        
+
         if t_0 == t_target:
             print("t_0 == t_target -> returning y_0\n")
             return y_0
-        
+
         elif t_0 > t_target:
             raise Exception("solve_dde_for_t: t_0 cannot be greater than t_target.")
-        
-        #----------------------------------------------------------------------------#
-        
+
+        # ----------------------------------------------------------------------------#
+
         t_current = t_0
         # y_current = y_0
-        
+
         all_results = []
-        
+
         past_points = []
-        
+
         while self.isInTimescale(t_current):
-            if discretePoint:               
+            if discretePoint:
                 print("Solving right scattered point where:")
                 print("t_current =", t_current)
                 print("y_current = y_values[t_current] =", y_values[t_current])
                 print("t_target =", t_target)
                 print("y_prime(t_current, y_values) =", y_prime(t_current, y_values))
                 print("self.mu(t_current) =", self.mu(t_current))
-                print()            
-                
+                print()
+
                 y_sigma_of_t_current = y_values[t_current] + y_prime(t_current, y_values) * self.mu(t_current)
-                
-                t_next = self.sigma(t_current) 
-                
+
+                t_next = self.sigma(t_current)
+
                 print("t_next = self.sigma(t_current) =", t_next)
-                print()                
+                print()
                 print("Result:")
                 print("y_sigma_of_t_current =", y_sigma_of_t_current)
                 print()
-                
+
                 all_results.append(y_sigma_of_t_current)
-                                
+
                 if t_target == t_next:
                     print("t_target == t_next -> returning y_sigma_of_t_current\n")
-                    
+
                     if return_all_results:
                         return all_results
-                    
+
                     else:
                         return y_sigma_of_t_current
-                
+
                 if self.isDiscretePoint(t_next):
                     discretePoint = True
                     print("[NEXT IS DISCRETE POINT]")
                     print()
-                    
+
                 else:
                     print("[NEXT IS NOT DISCRETE POINT]")
-                    print()                    
+                    print()
                     discretePoint = False
-                
+
                 past_point = [t_current, [y_values[t_current]], [y_sigma_of_t_current]]
                 past_points.append(past_point)
-                
+
                 y_values[t_next] = y_sigma_of_t_current
-                
+
                 t_current = t_next
-                
+
             else:
-                print("Solving right dense point where:")                    
+                print("Solving right dense point where:")
                 print("t_current =", t_current)
                 print("y_current = y_values[t_current] =", y_values[t_current])
                 print("t_target =", t_target)
                 print()
-                
+
                 if self.isDiscretePoint(t_current):
                     raise Exception("t_current is NOT in a list/interval! Something went wrong!")
-                
+
                 else:
                     interval_of_t_current = self.getCorrespondingInterval(t_current)
-                    
+
                     print("Integration conditions:")
                     print("t_current =", t_current)
                     print("interval_of_t_current =", interval_of_t_current)
-                    
+
                     if t_target <= interval_of_t_current[1] and t_target >= interval_of_t_current[0]:
                         print("Integrating to t =", t_target)
-                        print()                                             
-                        
+                        print()
+
                         current_interval = np.arange(t_current, t_target + stepSize, stepSize)
-                        
+
                         print(current_interval)
                         print()
-                        
-                        DDE_integration_result = []                        
-                        JiTCDDE = self.updateJiTCDDE(JiTCDDE, past_points)                      
+
+                        DDE_integration_result = []
+                        JiTCDDE = self.updateJiTCDDE(JiTCDDE, past_points)
                         past_points = []
-                                                
+
                         for time in current_interval:
                             if time <= t_target:
                                 DDE_integration_result = JiTCDDE.integrate_blindly(time)
                                 all_results.append(DDE_integration_result[0])
                                 print("time =", time, " |  integration_result =", DDE_integration_result)
-                                                
-                        #---Testing-Code-Start---#
-                        
-                        t_current = t_target # The following should hold barring accuracy limitations: t_target != JiTCDDE.t
+
+                        # ---Testing-Code-Start---#
+
+                        t_current = t_target  # The following should hold barring accuracy limitations: t_target != JiTCDDE.t
                         y_values[t_current] = DDE_integration_result[0]
-                        
+
                         print("t_current =", t_current)
-                        print("JiTCDDE.t =", JiTCDDE.t)                          
+                        print("JiTCDDE.t =", JiTCDDE.t)
                         print("y_current = y_values[t_current] =", y_values[t_current])
                         print()
-                        
-                        #---Testing-Code-End---#
-                        
+
+                        # ---Testing-Code-End---#
+
                         print("Result:")
                         print("time =", t_current, "| DDE_integration_result =", DDE_integration_result)
                         print()
-                        
+
                         if return_all_results:
                             return all_results
-                        
+
                         else:
-                            return DDE_integration_result[len(DDE_integration_result) - 1]                        
-                    
+                            return DDE_integration_result[len(DDE_integration_result) - 1]
+
                     elif t_target > interval_of_t_current[1]:
                         print("Integrating to t =", interval_of_t_current[1])
                         print()
-                        
+
                         current_interval = np.arange(t_current, interval_of_t_current[1] + stepSize, stepSize)
-                        
+
                         print(current_interval)
                         print()
-                        
-                        DDE_integration_result = []                        
-                        JiTCDDE = self.updateJiTCDDE(JiTCDDE, past_points)                        
+
+                        DDE_integration_result = []
+                        JiTCDDE = self.updateJiTCDDE(JiTCDDE, past_points)
                         past_points = []
-                                                
+
                         for time in current_interval:
                             if time <= t_target:
                                 DDE_integration_result = JiTCDDE.integrate_blindly(time)
                                 all_results.append(DDE_integration_result[0])
                                 print("time =", time, " |  integration_result =", DDE_integration_result)
-                                                
-                        t_current = interval_of_t_current[1] # The following should hold barring accuracy limitations: interval_of_t_current[1] == JiTCDDE.t
+
+                        t_current = interval_of_t_current[1]  # The following should hold barring accuracy limitations: interval_of_t_current[1] == JiTCDDE.t
                         y_values[t_current] = DDE_integration_result[0]
-                        
+
                         print("t_current =", t_current)
-                        print("JiTCDDE.t =", JiTCDDE.t)                          
+                        print("JiTCDDE.t =", JiTCDDE.t)
                         print("y_current = y_values[t_current] =", y_values[t_current])
                         print()
-                        
+
                         print("Result:")
                         print("time =", t_current, "| DDE_integration_result =", DDE_integration_result)
                         print()
-                        
+
                         print("[NEXT IS DISCRETE POINT]")
-                        print()                        
+                        print()
                         discretePoint = True
-    
+
     #
     #
     # Validation function that checks whether the value of a delay function (which is passed to this function as an argument) is in the timescale.
@@ -1672,18 +1672,18 @@ class timescale:
     # If no error is provided, then the isInTimescale() function will be used.
     # This function is primarily intended to be used when defining a y_prime function to be used with the solve_dde_for_t() function of this class.
     #
-    #    
-    def delay(self, delay_value, error=None):    
+    #
+    def delay(self, delay_value, error=None):
         if error is None:
             if not self.isInTimescale(delay_value):
                 raise Exception("The delay value =", delay_value, " was not in the timescale")
-        
+
         else:
             if not self.isInTimescaleWithError(delay_value, error):
                 raise Exception("The delay value =", delay_value, " was not in the timescale with error =", error)
-                
+
         return delay_value
-    
+
     #
     #
     # Utility function to avoid repeated code.
@@ -1691,22 +1691,22 @@ class timescale:
     # For more information see: https://jitcdde.readthedocs.io/en/stable/#the-main-class
     # This function is used by the solve_dde_for_t() function.
     #
-    #    
-    def initializeJiTCDDE(self, y_prime_jitcdde, past_function, arg_max_delay, arg_times_of_interest, c_backend):    
-        DDE = jitcdde.jitcdde(y_prime_jitcdde, max_delay=arg_max_delay)                  
+    #
+    def initializeJiTCDDE(self, y_prime_jitcdde, past_function, arg_max_delay, arg_times_of_interest, c_backend):
+        DDE = jitcdde.jitcdde(y_prime_jitcdde, max_delay=arg_max_delay)
         DDE.past_from_function(past_function, times_of_interest=arg_times_of_interest)
 
         if c_backend == False:
-            DDE.generate_lambdas()  
+            DDE.generate_lambdas()
 
         print()
-        
+
         # print("state:")
         # x = DDE.get_state()
-        
+
         # for y in x:
-            # print(y)
-        
+        # print(y)
+
         # print()
 
         return DDE
@@ -1718,29 +1718,29 @@ class timescale:
     # For more information see: https://jitcdde.readthedocs.io/en/stable/#_jitcdde.jitcdde.add_past_point
     # This function is used by the solve_dde_for_t() function.
     #
-    #    
+    #
     def updateJiTCDDE(self, DDE, past_points):
         # print("state:")
         # x = DDE.get_state()
-        
+
         # for y in x:
-            # print(y)
+        # print(y)
         # print()
-    
+
         print("past points:")
         for past_point in past_points:
             time = past_point[0]
             state = past_point[1]
-            derivative = past_point[2]            
-            
-            print("time:", time, "| state:", state, "| derivative:", derivative)            
-            
+            derivative = past_point[2]
+
+            print("time:", time, "| state:", state, "| derivative:", derivative)
+
             DDE.add_past_point(time, state, derivative)
-        
+
         print()
-        
-        return DDE 
-    
+
+        return DDE
+
     #
     #
     # Utility function to avoid repeated code.
@@ -1756,11 +1756,11 @@ class timescale:
                     return True
 
             elif isinstance(ts_item, list):
-                if (t >= (ts_item[0] - error) and t <= (ts_item[1] + error)):
+                if t >= (ts_item[0] - error) and t <= (ts_item[1] + error):
                     return True
-        
+
         return False
-    
+
     #
     #
     # Utility function to avoid repeated code.
@@ -1773,11 +1773,11 @@ class timescale:
             if not isinstance(ts_item, list) and ts_item == t:
                 return True
 
-            elif isinstance(ts_item, list) and  (t >= ts_item[0] and t <= ts_item[1]):
+            elif isinstance(ts_item, list) and (t >= ts_item[0] and t <= ts_item[1]):
                 return True
-        
+
         return False
-                
+
     #
     #
     # Utility function to avoid repeated code.
@@ -1787,13 +1787,13 @@ class timescale:
     def isDiscretePoint(self, t):
         for x in self.ts:
             if not isinstance(x, list) and t == x:
-                return True           
-            
+                return True
+
             if isinstance(x, list) and t <= x[1] and t >= x[0]:
                 return False
-        
+
         raise Exception("isDiscretePoint(): t was neither a discrete point nor in an interval!")
-    
+
     #
     #
     # Utility function to avoid repeated code.
@@ -1805,9 +1805,9 @@ class timescale:
         for x in self.ts:
             if isinstance(x, list) and t <= x[1] and t >= x[0]:
                 return x
-        
+
         raise Exception("getCorrespondingInterval(): t not in an interval!")
-    
+
     #
     #
     # Plotting functionality.
@@ -1819,7 +1819,7 @@ class timescale:
     # Optional arguments:
     #   stepSize:
     #   The accuracy to which the intervals are drawn in the graph - the smaller the value, the higher the accuracy and overhead.
-    #  
+    #
     #   discreteStyle, intervalStyle:
     #   These arguments determine the color, marker, and line styles of the graph.
     #   They accept string arguments of 3-part character combinations that represent a color, marker style, and line style.
@@ -1837,7 +1837,7 @@ class timescale:
     # NOTE: To display plots that are created with this function, call the show() function of the plt data member of this class.
     #
     #
-    def plot(self, f, stepSize=0.01, discreteStyle='b.', intervalStyle='r-', **kwargs):
+    def plot(self, f, stepSize=0.01, discreteStyle="b.", intervalStyle="r-", **kwargs):
         xDiscretePoints = []
         yDiscretePoints = []
 
@@ -1860,26 +1860,26 @@ class timescale:
                 xDiscretePoints.append(tsItem)
                 yDiscretePoints.append(f(tsItem))
 
-        plt.plot(xDiscretePoints, yDiscretePoints, discreteStyle, **kwargs)    
-        
+        plt.plot(xDiscretePoints, yDiscretePoints, discreteStyle, **kwargs)
+
         labeled = False
         removedLabel = False
-        
+
         if "label" in kwargs:
-            if discreteStyle == intervalStyle:            
+            if discreteStyle == intervalStyle:
                 kwargs.pop("label")
-                removedLabel = True       
+                removedLabel = True
 
         for xyIntervalPointsPair in intervals:
             if "label" in kwargs:
-                if labeled == True and removedLabel == False:                
-                    kwargs.pop("label")    
-                    removedLabel = True                  
-                
+                if labeled == True and removedLabel == False:
+                    kwargs.pop("label")
+                    removedLabel = True
+
             plt.plot(xyIntervalPointsPair[0], xyIntervalPointsPair[1], intervalStyle, **kwargs)
-            
+
             labeled = True
-    
+
     #
     #
     # Scatter plotting functionality.
@@ -1921,30 +1921,30 @@ class timescale:
             else:
                 xDiscretePoints.append(tsItem)
                 yDiscretePoints.append(f(tsItem))
-            
-        plt.scatter(xDiscretePoints, yDiscretePoints, **kwargs)    
+
+        plt.scatter(xDiscretePoints, yDiscretePoints, **kwargs)
 
         if "label" in kwargs:
             if "color" in kwargs:
                 kwargs.pop("label")
-                
-        for xyIntervalPointsPair in intervals:            
+
+        for xyIntervalPointsPair in intervals:
             plt.scatter(xyIntervalPointsPair[0], xyIntervalPointsPair[1], **kwargs)
-    
+
+
 #
 #
 # create the time scale of integers {x : a <= x <= b}
 #
 #
-def integers(a,b):
-    return timescale(list(range(a,b+1)),'integers from '+str(a)+' to '+str(b))
+def integers(a, b):
+    return timescale(list(range(a, b + 1)), "integers from " + str(a) + " to " + str(b))
+
 
 #
 #
 # create the time scale of quantum numbers of form {q^k:k=m,m+1,...,n}
 # only does q^(X) where X={0,1,2,3,...} at the moment
 #
-def quantum(q,m,n):
-    return timescale([q**k for k in range(m,n)], 'quantum numbers '+str(q)+'^'+str(m)+' to '+str(q)+'^'+str(n))
-
-
+def quantum(q, m, n):
+    return timescale([q**k for k in range(m, n)], "quantum numbers " + str(q) + "^" + str(m) + " to " + str(q) + "^" + str(n))

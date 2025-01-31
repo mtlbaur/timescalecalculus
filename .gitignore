@@ -1,0 +1,19 @@
+# ignore everything in the root directory by default
+/*
+
+# ignore files anywhere in the tree that match specified patterns
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+
+# include specific root files
+!.gitignore
+!LICENSE.txt
+!README.md
+!pyproject.toml
+
+# include specific root folders
+!src
+!test
+!ex
+!dist
